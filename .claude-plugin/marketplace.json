@@ -1,0 +1,24 @@
+{
+  "name": "aetheris-claude-skills",
+  "owner": {
+    "name": "Aetheris Solutions",
+    "email": "team@aetherissolutions.com"
+  },
+  "metadata": {
+    "description": "Curated Claude Code + Codex CLI skills for the Aetheris Solutions agency workflow. Ships /aetheris-review (multi-agent PR review with Aetheris admin ticket integration) and grows as the team standardises shared workflows.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "aetheris",
+      "description": "Aetheris Solutions agency skills — currently /aetheris-review for multi-agent PR review with ticket integration. Auto-detects the project from the repo URL via the aetheris-admin MCP, injects ticket acceptance criteria into every review agent, tiers findings into blocker / before-merge comments, and posts per-ticket findings back to Aetheris.",
+      "version": "1.1.0",
+      "category": "code-review",
+      "author": {
+        "name": "Aetheris Solutions",
+        "email": "team@aetherissolutions.com"
+      },
+      "source": "./plugins/aetheris"
+    }
+  ]
+}
