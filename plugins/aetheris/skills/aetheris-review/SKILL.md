@@ -571,43 +571,54 @@ comments (only the ones with attributable findings) instead of 10.
 
 ## Installation
 
-This skill ships as part of the
+This skill ships inside the `aetheris` plugin in the
 [`aetheris-claude-skills`](https://github.com/Aetheris-Solutions-LLC/aetheris-claude-skills)
-plugin and works on both Claude Code and Codex CLI.
+**marketplace** repo (one marketplace, one plugin, many skills as
+the team grows). Works on both Claude Code and Codex CLI.
 
-### Claude Code
+### Claude Code (two-command flow)
+
+Register the marketplace once, then install the plugin from it:
 
 ```text
-/plugin install https://github.com/Aetheris-Solutions-LLC/aetheris-claude-skills
+/plugin marketplace add Aetheris-Solutions-LLC/aetheris-claude-skills
+/plugin install aetheris@aetheris-claude-skills
 ```
 
 Restart Claude Code. Verify by typing `/aetheris-review` and
-checking that the slash completion fires (or that
-`Skill aetheris-review` is listed in the available-skills system
-reminder). Update later with `/plugin update aetheris-claude-skills`.
+checking that the slash completion fires. Update later with
+`/plugin update aetheris@aetheris-claude-skills` — any future skills
+added to the `aetheris` plugin get picked up automatically.
 
 ### Codex CLI
 
-Codex doesn't have a `/plugin install` equivalent — install via
-symlink from a clone:
+Codex doesn't have a marketplace concept yet — clone the repo and
+run the included symlink script:
 
 ```bash
 git clone https://github.com/Aetheris-Solutions-LLC/aetheris-claude-skills \
   ~/.aetheris/aetheris-claude-skills
-ln -s ~/.aetheris/aetheris-claude-skills/skills/aetheris-review \
-  ~/.agents/skills/aetheris-review
+~/.aetheris/aetheris-claude-skills/install-codex.sh
 ```
 
-Then enable multi-agent in `~/.codex/config.toml` (the five-agent
-fan-out + scoring step depend on it):
+The script symlinks every `plugins/*/skills/*/` directory into
+`~/.agents/skills/`, so it picks up future skills automatically.
+It's idempotent (re-run safely) and supports `--dry-run` and
+`--uninstall`.
+
+Enable multi-agent in `~/.codex/config.toml` (the five-agent fan-out
++ scoring step depend on it):
 
 ```toml
 [features]
 multi_agent = true
 ```
 
-Restart Codex CLI. Update later with
-`cd ~/.aetheris/aetheris-claude-skills && git pull`.
+Restart Codex CLI. Update later:
+
+```bash
+cd ~/.aetheris/aetheris-claude-skills && git pull && ./install-codex.sh
+```
 
 See [`references/codex-tools.md`](references/codex-tools.md) for the
 full Claude Code → Codex tool mapping (Agent → `spawn_agent`,
@@ -616,9 +627,10 @@ Codex `~/.codex/config.toml` MCP setup for `aetheris-admin`.
 
 ### Development
 
-Clone the plugin repo and either reinstall from a local path
-(Claude Code: `/plugin install /absolute/path/...`) or symlink
-straight into your platform's skills dir. The repo README has the
+Clone the marketplace repo, then either symlink the skill straight
+into your platform's skills dir or install from a local path
+(Claude Code: `/plugin marketplace add /absolute/path/...`). The
+[marketplace README](../../../../README.md#development) has the
 full dev workflow.
 
 ## Out of scope (v1)

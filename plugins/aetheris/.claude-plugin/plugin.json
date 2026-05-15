@@ -1,6 +1,7 @@
 {
-  "name": "aetheris-claude-skills",
-  "description": "Skills for Aetheris Solutions workflows — multi-agent PR review with Aetheris admin ticket integration. Ships as a Claude Code plugin and works on Codex CLI via symlink install (see plugin README).",
+  "name": "aetheris",
+  "version": "1.1.0",
+  "description": "Aetheris Solutions agency skills for Claude Code + Codex CLI — currently /aetheris-review for multi-agent PR review with ticket integration.",
   "author": {
     "name": "Aetheris Solutions",
     "email": "team@aetherissolutions.com"
