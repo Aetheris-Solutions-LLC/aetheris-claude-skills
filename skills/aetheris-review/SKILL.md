@@ -3,7 +3,7 @@ name: aetheris-review
 description: Multi-agent PR review with Aetheris ticket integration. Use when reviewing a PR in any Aetheris client project — auto-detects the project from the repo URL, pulls associated tickets and acceptance criteria into the review, posts a tiered PR comment (blockers + before-merge) and per-ticket findings to Aetheris. Triggered by /aetheris-review or /aetheris-review <PR#>.
 argument-hint: "[pr-number] [--blocker-threshold=N] [--before-merge-threshold=N] [--no-ticket-acks]"
 metadata:
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # Aetheris Review
@@ -35,16 +35,23 @@ When **not** to use:
 - **GitHub CLI**: `gh auth status` must succeed. Used for everything
   PR-side (view, diff, comment).
 - **Aetheris admin MCP authenticated**. The skill calls the
-  `admin_*` tool family. See
-  `docs/admin/claude-code-setup.md` in the repo for token setup.
-  Required tools (all via `mcp__aetheris-admin__*`):
+  `admin_*` tool family. See [Aetheris admin setup](https://github.com/sirzoot/AetherisSite/blob/main/docs/admin/claude-code-setup.md)
+  for token + JSON config (Claude Code) or
+  [`references/codex-tools.md`](references/codex-tools.md) for the
+  Codex `~/.codex/config.toml` equivalent.
+  Required tools (the `admin_*` names are stable across platforms;
+  only the namespace prefix changes — Claude Code uses
+  `mcp__aetheris-admin__admin_*`, Codex uses the bare names):
   - Reads: `admin_project_list`, `admin_project_get`,
     `admin_ticket_get`, `admin_ticket_list_comments`,
     `admin_ticket_list_dependencies`, `admin_epic_get`
   - Write: `admin_ticket_post_comment`
-- The skill assumes Sonnet for review agents and Haiku for scoring
-  agents (matches `code-review:code-review`). Make these explicit on
-  every `Agent` call via the `model` parameter.
+- **Sub-agent dispatch**. The skill assumes the runner can dispatch
+  parallel sub-agents with model selection (a stronger model for
+  review, a faster model for scoring). On Claude Code that's the
+  `Agent` tool with `model: sonnet` / `model: haiku`. On Codex CLI
+  it's `spawn_agent` with the multi-agent feature enabled — see
+  [`references/codex-tools.md`](references/codex-tools.md).
 
 ## Arguments
 
@@ -564,27 +571,55 @@ comments (only the ones with attributable findings) instead of 10.
 
 ## Installation
 
-This skill ships as part of the `aetheris-claude-skills` Claude Code
-plugin. Teammates install via:
+This skill ships as part of the
+[`aetheris-claude-skills`](https://github.com/Aetheris-Solutions-LLC/aetheris-claude-skills)
+plugin and works on both Claude Code and Codex CLI.
 
-```bash
+### Claude Code
+
+```text
 /plugin install https://github.com/Aetheris-Solutions-LLC/aetheris-claude-skills
 ```
 
-Then restart Claude Code. Verify by typing `/aetheris-review` and
-checking that the slash completion fires.
+Restart Claude Code. Verify by typing `/aetheris-review` and
+checking that the slash completion fires (or that
+`Skill aetheris-review` is listed in the available-skills system
+reminder). Update later with `/plugin update aetheris-claude-skills`.
 
-To update later, run `/plugin update aetheris-claude-skills` (or
-`/plugin uninstall` + reinstall on older Claude Code builds).
+### Codex CLI
 
-For development on the skill itself, clone the plugin repo and
-either symlink it into the plugin cache or reinstall from a local
-path — see the plugin README for the dev workflow.
+Codex doesn't have a `/plugin install` equivalent — install via
+symlink from a clone:
 
-After install, restart Claude Code so the skill loader picks it up,
-and verify by checking that `Skill aetheris-review` is listed in the
-available-skills system reminder, or that `/aetheris-review` is
-auto-completable.
+```bash
+git clone https://github.com/Aetheris-Solutions-LLC/aetheris-claude-skills \
+  ~/.aetheris/aetheris-claude-skills
+ln -s ~/.aetheris/aetheris-claude-skills/skills/aetheris-review \
+  ~/.agents/skills/aetheris-review
+```
+
+Then enable multi-agent in `~/.codex/config.toml` (the five-agent
+fan-out + scoring step depend on it):
+
+```toml
+[features]
+multi_agent = true
+```
+
+Restart Codex CLI. Update later with
+`cd ~/.aetheris/aetheris-claude-skills && git pull`.
+
+See [`references/codex-tools.md`](references/codex-tools.md) for the
+full Claude Code → Codex tool mapping (Agent → `spawn_agent`,
+TodoWrite → `update_plan`, MCP namespace differences, etc.) and the
+Codex `~/.codex/config.toml` MCP setup for `aetheris-admin`.
+
+### Development
+
+Clone the plugin repo and either reinstall from a local path
+(Claude Code: `/plugin install /absolute/path/...`) or symlink
+straight into your platform's skills dir. The repo README has the
+full dev workflow.
 
 ## Out of scope (v1)
 
