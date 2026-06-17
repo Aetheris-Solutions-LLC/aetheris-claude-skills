@@ -11,8 +11,8 @@
   "plugins": [
     {
       "name": "aetheris",
-      "description": "Aetheris Solutions agency skills. /aetheris-review: multi-agent PR review with ticket integration — auto-detects the project from the repo URL via the aetheris-admin MCP, injects ticket acceptance criteria into every review agent, tiers findings into blocker / before-merge comments, and posts per-ticket findings back to Aetheris. /second-opinion: an independent, read-only Codex CLI review of the current diff/branch/commit for a fresh perspective from a different model — advisory only, never edits, report saved outside the repo.",
-      "version": "1.2.0",
+      "description": "Aetheris Solutions agency skills. /aetheris-review: multi-agent PR review with ticket integration — auto-detects the project from the repo URL via the aetheris-admin MCP, injects ticket acceptance criteria into every review agent, tiers findings into blocker / before-merge comments, and posts per-ticket findings back to Aetheris. /second-opinion: an independent, read-only Codex CLI review for a fresh perspective from a different model — either a code change (diff/branch/commit) or a plan/spec/design doc before it's built (--plan). Advisory only, never edits, report saved outside the repo.",
+      "version": "1.3.0",
       "category": "code-review",
       "author": {
         "name": "Aetheris Solutions",

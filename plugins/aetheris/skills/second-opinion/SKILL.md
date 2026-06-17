@@ -1,7 +1,7 @@
 ---
 name: second-opinion
-description: Use when you want an independent, fresh-perspective code review from a different model (OpenAI Codex) on the current change — a read-only advisory second opinion that never edits code. Triggered by /second-opinion, or when the user asks for "a second opinion", "fresh eyes", or "a Codex review" on a diff, branch, or commit.
-argument-hint: "[--uncommitted | --base <branch> | --commit <sha>]"
+description: Use when you want an independent, fresh-perspective review from a different model (OpenAI Codex) — either on a code change (diff/branch/commit) or on a plan/spec/design doc before it's built. A read-only advisory second opinion that never edits. Triggered by /second-opinion, or when the user asks for "a second opinion", "fresh eyes", "a Codex review", or "review this plan".
+argument-hint: "[--uncommitted | --base <branch> | --commit <sha> | --plan <file>]"
 metadata:
   version: 1.0.0
 ---
@@ -35,19 +35,21 @@ scope, invokes Codex read-only, and saves the report **outside** the repo
 bash <this-skill-dir>/review.sh [scope-flag]
 ```
 
-Scope — no flag means smart default (on a feature branch → diff vs the
-default branch; otherwise the working tree):
+Two modes — **code review** (a diff) and **plan review** (a doc):
 
 | Flag | Reviews |
 |---|---|
-| _(none)_ | smart default |
-| `--uncommitted` | staged + unstaged + untracked |
-| `--base <branch>` | diff vs a base branch (PR-equivalent) |
-| `--commit <sha>` | a single commit's changes |
+| _(none)_ | code: smart default (feature branch → vs default branch; else working tree) |
+| `--uncommitted` | code: staged + unstaged + untracked |
+| `--base <branch>` | code: diff vs a base branch (PR-equivalent) |
+| `--commit <sha>` | code: a single commit's changes |
+| `--plan <file>` | **a plan / spec / design doc**, before it's built — Codex critiques soundness, dependency ordering, risk/cost/reversibility, and gaps, grounding against the code the doc references |
 
 The helper streams Codex's review to stdout and ends with a `REPORT_PATH:`
-line. (`codex review` cannot combine a scope flag with a custom prompt, so
-the skill uses Codex's built-in comprehensive review on the chosen scope.)
+line. Code mode uses `codex review` (it can't take a custom prompt, so it
+runs Codex's built-in comprehensive review on the scope); plan mode uses
+`codex exec` with a baked-in plan-critique prompt. Both run from the repo so
+Codex can cross-reference code.
 
 ## Presenting the result — faithful passthrough
 
