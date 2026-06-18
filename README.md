@@ -2,8 +2,8 @@
 
 A **Claude Code marketplace** of curated skills for the Aetheris
 Solutions agency workflow. Currently ships one plugin (`aetheris`)
-with one skill (`/aetheris-review`); grows as the team standardises
-shared workflows. The same SKILL.md sources also work on **Codex
+with two skills (`/aetheris-review` and `/second-opinion`); grows as
+the team standardises shared workflows. The same SKILL.md sources also work on **Codex
 CLI** — see the Codex install section below.
 
 ## What's in here
@@ -11,6 +11,7 @@ CLI** — see the Codex install section below.
 | Plugin | Skills | What it does |
 |---|---|---|
 | `aetheris` | `/aetheris-review` | Multi-agent PR review with Aetheris admin ticket integration. Auto-detects the project, hydrates ticket acceptance criteria, fans out 5 review agents (CLAUDE.md / shallow bug / git regression / prior PR comments / in-code comment compliance), scores each finding 0–100, posts tiered PR comments (blockers ≥90, before-merge 70–89), and posts per-ticket findings back to Aetheris. Full spec: [SKILL.md](plugins/aetheris/skills/aetheris-review/SKILL.md). |
+| `aetheris` | `/second-opinion` | Independent, read-only Codex CLI review for a fresh perspective from a different model — on a code change (`--uncommitted` / `--base` / `--commit`, smart default) or a plan/spec/design doc before it's built (`--plan <file>`). Advisory only, never edits; runs Codex in a read-only sandbox with host skill-hooks disabled; report saved outside the repo (`~/.codex-reviews/`). Full spec: [SKILL.md](plugins/aetheris/skills/second-opinion/SKILL.md). |
 
 ## Install
 
@@ -128,10 +129,13 @@ aetheris-claude-skills/                 ← this repo (the marketplace)
 │   └── aetheris/                       ← the plugin
 │       ├── .claude-plugin/plugin.json  ← plugin manifest
 │       └── skills/
-│           └── aetheris-review/        ← the skill
+│           ├── aetheris-review/        ← multi-agent PR review
+│           │   ├── SKILL.md
+│           │   └── references/
+│           │       └── codex-tools.md
+│           └── second-opinion/         ← read-only Codex fresh-eyes review
 │               ├── SKILL.md
-│               └── references/
-│                   └── codex-tools.md
+│               └── review.sh
 ├── README.md                           ← you are here
 └── LICENSE
 ```
