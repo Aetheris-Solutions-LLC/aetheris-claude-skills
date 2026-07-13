@@ -14,6 +14,13 @@ CLI** — see the Codex install section below.
 | `aetheris` | `/second-opinion` | Independent, read-only Codex CLI review for a fresh perspective from a different model — on a code change (`--uncommitted` / `--base` / `--commit`, smart default) or a plan/spec/design doc before it's built (`--plan <file>`). Advisory only, never edits; runs Codex in a read-only sandbox with host skill-hooks disabled; report saved outside the repo (`~/.codex-reviews/`). Full spec: [SKILL.md](plugins/aetheris/skills/second-opinion/SKILL.md). |
 | `aetheris` | `/fable-orchestrator` | The agent-team playbook for expensive orchestrator models (Fable/Mythos-class): the orchestrator plans, routes, verifies, and reports while Opus agents build, Sonnet agents implement to spec, and Codex reviews every nontrivial diff — with hard file-ownership matrices, frozen interface contracts for parallel agents, and a failure playbook. Full spec: [SKILL.md](plugins/aetheris/skills/fable-orchestrator/SKILL.md). |
 
+**Using this outside Aetheris?** `/second-opinion` and
+`/fable-orchestrator` are fully portable — install and go.
+`/aetheris-review` is wired to our internal ticket system (the
+Aetheris admin MCP) and won't run without it; treat it as a
+reference implementation for wiring multi-agent, ticket-aware PR
+review into your own tracker.
+
 ## Install
 
 ### Claude Code (recommended)
@@ -76,25 +83,36 @@ TodoWrite → `update_plan`, etc.) and the parallel
 
 ## Prerequisites
 
-Skills in this marketplace assume:
+Per skill:
 
-1. **GitHub CLI** — `gh auth status` returns clean.
-2. **Aetheris admin MCP** — the `aetheris-admin` MCP server is
-   configured and authenticated in your agent's config.
-   - Claude Code:
-     [docs/admin/claude-code-setup.md](https://github.com/sirzoot/AetherisSite/blob/main/docs/admin/claude-code-setup.md)
-   - Codex CLI: see the MCP section of
-     [`plugins/aetheris/skills/aetheris-review/references/codex-tools.md`](plugins/aetheris/skills/aetheris-review/references/codex-tools.md)
-3. **Sub-agent dispatch capability** — Claude Code's `Agent` tool
+1. **GitHub CLI** — `gh auth status` returns clean. (All skills.)
+2. **Sub-agent dispatch capability** — Claude Code's `Agent` tool
    (built-in) or Codex CLI's `spawn_agent` (requires
-   `multi_agent = true`).
-
-Without the MCP, skills that call `admin_*` tools will fail. The
-plugin doesn't ship the MCP server — that lives in
-[sirzoot/AetherisSite](https://github.com/sirzoot/AetherisSite) and
-is hosted at `https://aetherissolutions.com/admin/mcp`.
+   `multi_agent = true`). (`/aetheris-review`,
+   `/fable-orchestrator`.)
+3. **Codex CLI** on your PATH. (`/second-opinion`, and
+   `/fable-orchestrator`'s review lane.)
+4. **Aetheris admin MCP** — Aetheris team only, `/aetheris-review`
+   only. The `aetheris-admin` MCP server configured and
+   authenticated in your agent's config; setup docs live in our
+   internal (private) `AetherisSite` repo under
+   `docs/admin/claude-code-setup.md`, and the Codex CLI wiring is in
+   the MCP section of
+   [`references/codex-tools.md`](plugins/aetheris/skills/aetheris-review/references/codex-tools.md).
+   The plugin doesn't ship the MCP server. Without it, `admin_*`
+   calls fail — outside Aetheris, fork the skill and point it at
+   your own tracker's MCP.
 
 ## Usage
+
+### `/second-opinion` and `/fable-orchestrator`
+
+Both work in any repo once installed — invoke `/second-opinion` on a
+diff, branch, commit, or plan doc for a fresh-eyes Codex review, or
+`/fable-orchestrator` at the start of a large build to run the
+agent-team pattern. Flags and details in each skill's SKILL.md.
+
+### `/aetheris-review` (Aetheris team)
 
 Once installed, the typical flow:
 
