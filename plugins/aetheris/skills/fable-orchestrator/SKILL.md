@@ -18,7 +18,22 @@ or writing code in the main loop is a token that should have been delegated.
 | **Fable (you)** | Decompose, write spec, spawn, verify claims, route fixes, commit/PR, report | Reading big files, writing feature code, running long investigations |
 | **Opus agents** | Complex builds, analysis, debugging, adversarial same-model review | Mechanical work a spec fully determines |
 | **Sonnet agents** | Well-specified implementation, test-writing, cleanups, doc merges | Open-ended design or debugging |
-| **Codex** (`aetheris:second-opinion`) | Different-model review of every nontrivial diff AND plan/spec docs (`--plan`) | Applying fixes (advisory only) |
+| **Codex — reviewer** (`aetheris:second-opinion`) | Different-model review of every nontrivial diff AND plan/spec docs (`--plan`) | Applying its own fixes (that mode is advisory) |
+| **Codex — worker** (`codex exec`) | Cross-model diversity tasks: writing tests against Claude-authored code, independent patch of a disputed finding (tie-break vs an Opus fix), isolated well-specified builds | Bulk implementation (separate OpenAI quota, rate-limits under load — route volume to Sonnet/Opus) |
+
+## Codex as a worker
+
+```bash
+codex exec --sandbox workspace-write --skip-git-repo-check -C <owned-dir> "<task prompt>" \
+  > "$SCRATCHPAD/codex-task.out" 2>&1   # run via Bash in background; read the output file
+```
+
+- Same rules as any agent: file-ownership boundary in the prompt, no git ops,
+  verify its claims yourself. It has no mailbox — the output file is its report.
+- Its sandbox writes only under `-C`; point it at the owned directory, never repo root.
+- Best yield: test authorship for code a Claude agent wrote (different model,
+  different blind spots), and dueling patches when reviews disagree — have Codex
+  implement its finding, compare against the Claude agent's version, pick on evidence.
 
 ## The loop
 
