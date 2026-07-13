@@ -3,7 +3,7 @@ name: aetheris-review
 description: Multi-agent PR review with Aetheris ticket integration. Use when reviewing a PR in any Aetheris client project — auto-detects the project from the repo URL, pulls associated tickets and acceptance criteria into the review, posts a tiered PR comment (blockers + before-merge) and per-ticket findings to Aetheris. Triggered by /aetheris-review or /aetheris-review <PR#>.
 argument-hint: "[pr-number] [--blocker-threshold=N] [--before-merge-threshold=N] [--no-ticket-acks]"
 metadata:
-  version: 1.1.0
+  version: 1.1.1
 ---
 
 # Aetheris Review
@@ -35,7 +35,8 @@ When **not** to use:
 - **GitHub CLI**: `gh auth status` must succeed. Used for everything
   PR-side (view, diff, comment).
 - **Aetheris admin MCP authenticated**. The skill calls the
-  `admin_*` tool family. See [Aetheris admin setup](https://github.com/sirzoot/AetherisSite/blob/main/docs/admin/claude-code-setup.md)
+  `admin_*` tool family. Aetheris team: see the internal (private)
+  `AetherisSite` repo, `docs/admin/claude-code-setup.md`,
   for token + JSON config (Claude Code) or
   [`references/codex-tools.md`](references/codex-tools.md) for the
   Codex `~/.codex/config.toml` equivalent.

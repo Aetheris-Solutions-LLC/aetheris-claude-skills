@@ -1,6 +1,6 @@
 {
   "name": "aetheris",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Aetheris Solutions agency skills for Claude Code + Codex CLI \u2014 /aetheris-review (multi-agent PR review with ticket integration), /second-opinion (read-only Codex fresh-perspective code/plan review), and /fable-orchestrator (agent-team playbook: an expensive orchestrator model routes work to Opus/Sonnet builder agents and Codex review with file-ownership discipline).",
   "author": {
     "name": "Aetheris Solutions",
