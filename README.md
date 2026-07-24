@@ -12,10 +12,14 @@ CLI** — see the Codex install section below.
 |---|---|---|
 | `aetheris` | `/aetheris-review` | Multi-agent PR review with Aetheris admin ticket integration. Auto-detects the project, hydrates ticket acceptance criteria, fans out 5 review agents (CLAUDE.md / shallow bug / git regression / prior PR comments / in-code comment compliance), scores each finding 0–100, posts tiered PR comments (blockers ≥90, before-merge 70–89), and posts per-ticket findings back to Aetheris. Full spec: [SKILL.md](plugins/aetheris/skills/aetheris-review/SKILL.md). |
 | `aetheris` | `/second-opinion` | Independent, read-only Codex CLI review for a fresh perspective from a different model — on a code change (`--uncommitted` / `--base` / `--commit`, smart default) or a plan/spec/design doc before it's built (`--plan <file>`). Advisory only, never edits; runs Codex in a read-only sandbox with host skill-hooks disabled; report saved outside the repo (`~/.codex-reviews/`). Full spec: [SKILL.md](plugins/aetheris/skills/second-opinion/SKILL.md). |
-| `aetheris` | `/fable-orchestrator` | The agent-team playbook for expensive orchestrator models (Fable/Mythos-class): the orchestrator plans, routes, verifies, and reports while Opus agents build, Sonnet agents implement to spec, and Codex reviews every nontrivial diff — with hard file-ownership matrices, frozen interface contracts for parallel agents, and a failure playbook. Full spec: [SKILL.md](plugins/aetheris/skills/fable-orchestrator/SKILL.md). |
+| `aetheris` | `/fable-orchestrator` | The agent-team playbook for expensive orchestrator models (Fable, Mythos, or Opus 5): the orchestrator plans, routes, verifies, and reports while Opus agents build, Sonnet agents implement to spec, and Codex runs the primary review on every nontrivial diff — with a reusable spawn contract, file-ownership matrices (or worktree isolation), frozen interface contracts for parallel agents, and a failure playbook. Requires the `codex` CLI. Full spec: [SKILL.md](plugins/aetheris/skills/fable-orchestrator/SKILL.md). |
 
 **Using this outside Aetheris?** `/second-opinion` and
-`/fable-orchestrator` are fully portable — install and go.
+`/fable-orchestrator` are portable — no Aetheris services required. Both
+shell out to the `codex` CLI, so install it and log in first
+(`npm i -g @openai/codex && codex login`); it bills to your own OpenAI
+account. `/fable-orchestrator` leans on it hardest: Codex is the primary
+review round, so without it you get same-model review only.
 `/aetheris-review` is wired to our internal ticket system (the
 Aetheris admin MCP) and won't run without it; treat it as a
 reference implementation for wiring multi-agent, ticket-aware PR
@@ -153,9 +157,11 @@ aetheris-claude-skills/                 ← this repo (the marketplace)
 │           │   └── references/
 │           │       └── codex-tools.md
 │           ├── second-opinion/         ← read-only Codex fresh-eyes review
+│           │   ├── SKILL.md
+│           │   └── review.sh
 │           └── fable-orchestrator/     ← agent-team orchestration playbook
 │               ├── SKILL.md
-│               └── review.sh
+│               └── spawn-contract.md
 ├── README.md                           ← you are here
 └── LICENSE
 ```
