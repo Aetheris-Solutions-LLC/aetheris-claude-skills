@@ -2,7 +2,7 @@
 # review.sh — spawn a read-only Codex CLI "second opinion".
 #
 # Two modes:
-#   DIFF (default): Codex reviews a code change (`codex review`).
+#   DIFF (default): Codex reviews a code change (`codex exec review`).
 #   PLAN (--plan):  Codex critiques a plan/spec/design DOC before it is built
 #                   (`codex exec`), grounding its critique against the code
 #                   the doc references.
@@ -43,10 +43,14 @@ OUT_DIR="$HOME/.codex-reviews/$REPO_NAME"
 mkdir -p "$OUT_DIR"
 STAMP="$(date +%Y-%m-%d-%H%M%S)"
 
-# run_codex LABEL DESC — runs the CODEX_CMD array, tees to a dated report.
+# run_codex LABEL DESC — runs the CODEX_CMD array, writes a dated report.
+# The report holds Codex's VERDICT only (captured via --output-last-message);
+# the streamed transcript is ~100x larger and lands in a sibling .log.
 run_codex() {
   local label="$1" desc="$2"
   local report="$OUT_DIR/codex-$STAMP-$label.md"
+  local log="$OUT_DIR/codex-$STAMP-$label.transcript.log"
+  local verdict; verdict="$(mktemp)"
   {
     echo "# Codex second-opinion — $REPO_NAME"
     echo
@@ -60,10 +64,18 @@ run_codex() {
   } > "$report"
   echo "Second opinion (Codex, read-only) · $REPO_NAME · $desc" >&2
   echo >&2
-  # </dev/null: codex exec waits on stdin even when the prompt is in argv;
+  # </dev/null: codex waits on stdin even when the prompt is in argv;
   # without an EOF (e.g. run in a pipeline/background) it hangs forever.
-  "${CODEX_CMD[@]}" </dev/null 2>&1 | tee -a "$report"
+  "${CODEX_CMD[@]}" -o "$verdict" </dev/null 2>&1 | tee "$log"
   local rc=${PIPESTATUS[0]}
+  if [ -s "$verdict" ]; then
+    cat "$verdict" >> "$report"
+  else
+    echo "_Codex produced no final verdict (interrupted, or it exhausted its budget" >> "$report"
+    echo "exploring). Check the transcript before trusting this run._" >> "$report"
+  fi
+  printf '\n---\n\nFull transcript: %s\n' "$log" >> "$report"
+  rm -f "$verdict"
   echo >&2
   echo "REPORT_PATH: $report" >&2
   return "$rc"
@@ -107,7 +119,11 @@ case "${1:-}" in
             SCOPE_ARGS=(--uncommitted); SCOPE_DESC="uncommitted changes (auto)"
           fi ;;
     esac
-    CODEX_CMD=(codex "${CODEX_FLAGS[@]}" review "${SCOPE_ARGS[@]}")
+    # `exec review`, not top-level `review`: same built-in review harness, but
+    # it also accepts --output-last-message so the report can be the verdict
+    # instead of the whole transcript. NB: `exec review` takes custom review
+    # instructions OR a scope flag, never both — scope wins here.
+    CODEX_CMD=(codex "${CODEX_FLAGS[@]}" exec review "${SCOPE_ARGS[@]}")
     run_codex "$(printf '%s' "$BRANCH" | tr '/ :' '___')" "$SCOPE_DESC"
     exit $? ;;
 

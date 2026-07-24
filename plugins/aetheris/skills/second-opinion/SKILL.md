@@ -46,10 +46,18 @@ Two modes — **code review** (a diff) and **plan review** (a doc):
 | `--plan <file>` | **a plan / spec / design doc**, before it's built — Codex critiques soundness, dependency ordering, risk/cost/reversibility, and gaps, grounding against the code the doc references |
 
 The helper streams Codex's review to stdout and ends with a `REPORT_PATH:`
-line. Code mode uses `codex review` (it can't take a custom prompt, so it
-runs Codex's built-in comprehensive review on the scope); plan mode uses
-`codex exec` with a baked-in plan-critique prompt. Both run from the repo so
-Codex can cross-reference code.
+line. Code mode uses `codex exec review` on the chosen scope, running Codex's
+built-in review harness; plan mode uses `codex exec` with a baked-in
+plan-critique prompt. Both run from the repo so Codex can cross-reference code.
+
+**The report is the verdict, not the transcript.** Both modes capture Codex's
+final message via `--output-last-message` and write it to the report; the
+streamed run lands beside it in `<same-name>.transcript.log`. Read the report;
+open the transcript only when the report says Codex never reached a verdict.
+
+`codex exec review` does accept custom review instructions, but **not alongside
+a scope flag** — `--uncommitted` / `--base` / `--commit` and a custom prompt are
+mutually exclusive, so scope-selected reviews use the built-in harness.
 
 ## Presenting the result — faithful passthrough
 
@@ -69,7 +77,7 @@ asks. This skill itself never edits code.
 - **No changes:** `--sandbox read-only` makes writes impossible. Confirm with
   `git status` that the repo is untouched after a run.
 - **Out-of-repo report:** written to `~/.codex-reviews/<repo>/`, never inside
-  the repo.
+  the repo, alongside a `.transcript.log` of the full run.
 - **Focused & lean:** runs Codex with `--disable hooks` so the host machine's
   skill/plugin `session_start` hooks aren't injected into the review (without
   it, Codex rabbit-holes reading skill files — ~100x more output). Per-run

@@ -11,8 +11,8 @@
   "plugins": [
     {
       "name": "aetheris",
-      "description": "Aetheris Solutions agency skills. /aetheris-review: multi-agent PR review with ticket integration \u2014 auto-detects the project from the repo URL via the aetheris-admin MCP, injects ticket acceptance criteria into every review agent, tiers findings into blocker / before-merge comments, and posts per-ticket findings back to Aetheris. /second-opinion: an independent, read-only Codex CLI review for a fresh perspective from a different model \u2014 either a code change (diff/branch/commit) or a plan/spec/design doc before it's built (--plan). Advisory only, never edits, report saved outside the repo. /fable-orchestrator: the agent-team pattern \u2014 the orchestrator model stays lean and routes builds to Opus/Sonnet agents with hard file-ownership matrices, interface contracts for parallel work, independent verification, and a two-round (same-model + Codex) review pipeline.",
-      "version": "1.4.0",
+      "description": "Aetheris Solutions agency skills. /aetheris-review: multi-agent PR review with ticket integration \u2014 auto-detects the project from the repo URL via the aetheris-admin MCP, injects ticket acceptance criteria into every review agent, tiers findings into blocker / before-merge comments, and posts per-ticket findings back to Aetheris. /second-opinion: an independent, read-only Codex CLI review for a fresh perspective from a different model \u2014 either a code change (diff/branch/commit) or a plan/spec/design doc before it's built (--plan). Advisory only, never edits, report saved outside the repo. /fable-orchestrator: the agent-team pattern \u2014 an expensive orchestrator model (Fable, Mythos, or Opus 5) stays lean and routes builds to Opus/Sonnet agents, with a reusable spawn contract, file-ownership matrices or worktree isolation, interface contracts for parallel work, independent verification, and a two-round review pipeline led by Codex. Requires the codex CLI.",
+      "version": "1.5.0",
       "category": "code-review",
       "author": {
         "name": "Aetheris Solutions",
