@@ -18,7 +18,17 @@
 #   review.sh --base <branch>  # diff against a base branch (PR-equivalent)
 #   review.sh --commit <sha>   # one commit's changes
 #   review.sh --plan <file>    # fresh-eyes review of a plan/spec/design doc
+#
+# Environment:
+#   CODEX_REVIEW_MODEL   reviewer model (default below; see ../../MODELS.md)
+#   CODEX_REVIEW_EFFORT  reasoning effort (default: unset, so config.toml's
+#                        model_reasoning_effort or the model's default applies)
 set -uo pipefail
+
+# Pinned so a change to Codex's own default can't silently swap the reviewer.
+# The plugin's MODELS.md lists the current value; update both together.
+REVIEW_MODEL="${CODEX_REVIEW_MODEL:-gpt-6-astra}"
+REVIEW_EFFORT="${CODEX_REVIEW_EFFORT:-}"
 
 # --- preflight (codex always required) -------------------------------------
 command -v codex >/dev/null 2>&1 || {
@@ -39,6 +49,10 @@ fi
 
 # Shared Codex flags: read-only (no writes), never-prompt, no host hooks.
 CODEX_FLAGS=(-s read-only -a never --disable hooks)
+# Model flags go after the subcommand. `review_model` is set too because a
+# user's config.toml can name a separate model for reviews.
+MODEL_FLAGS=(-m "$REVIEW_MODEL" -c "review_model=\"$REVIEW_MODEL\"")
+[ -n "$REVIEW_EFFORT" ] && MODEL_FLAGS+=(-c "model_reasoning_effort=\"$REVIEW_EFFORT\"")
 OUT_DIR="$HOME/.codex-reviews/$REPO_NAME"
 mkdir -p "$OUT_DIR"
 STAMP="$(date +%Y-%m-%d-%H%M%S)"
@@ -51,23 +65,30 @@ run_codex() {
   local report="$OUT_DIR/codex-$STAMP-$label.md"
   local log="$OUT_DIR/codex-$STAMP-$label.transcript.log"
   local verdict; verdict="$(mktemp)"
+  echo "Second opinion (Codex, read-only) · $REPO_NAME · $desc · $REVIEW_MODEL" >&2
+  echo >&2
+  # </dev/null: codex waits on stdin even when the prompt is in argv;
+  # without an EOF (e.g. run in a pipeline/background) it hangs forever.
+  "${CODEX_CMD[@]}" -o "$verdict" </dev/null 2>&1 | tee "$log"
+  local rc=${PIPESTATUS[0]}
+  # The header records what Codex says it ran (its session banner), so reports
+  # stay comparable across model changes; the requested values sit beside it.
+  local ran_model ran_effort
+  ran_model="$(sed -n 's/^model: //p' "$log" | head -n 1)"
+  ran_effort="$(sed -n 's/^reasoning effort: //p' "$log" | head -n 1)"
   {
     echo "# Codex second-opinion — $REPO_NAME"
     echo
     echo "- when: $STAMP"
     echo "- branch: $BRANCH"
     echo "- scope: $desc"
+    echo "- model: ${ran_model:-unknown} (requested: $REVIEW_MODEL)"
+    echo "- reasoning effort: ${ran_effort:-unknown} (requested: ${REVIEW_EFFORT:-not set, config.toml or model default})"
     echo "- mode: read-only (Codex made no changes)"
     echo
     echo "---"
     echo
   } > "$report"
-  echo "Second opinion (Codex, read-only) · $REPO_NAME · $desc" >&2
-  echo >&2
-  # </dev/null: codex waits on stdin even when the prompt is in argv;
-  # without an EOF (e.g. run in a pipeline/background) it hangs forever.
-  "${CODEX_CMD[@]}" -o "$verdict" </dev/null 2>&1 | tee "$log"
-  local rc=${PIPESTATUS[0]}
   if [ -s "$verdict" ]; then
     cat "$verdict" >> "$report"
   else
@@ -96,7 +117,7 @@ case "${1:-}" in
     [ -f "$2" ] || { echo "ERROR: plan file not found: $2" >&2; exit 2; }
     # shellcheck disable=SC2059  # PLAN_PROMPT has exactly one %s (the path)
     PROMPT="$(printf "$PLAN_PROMPT" "$2")"
-    CODEX_CMD=(codex "${CODEX_FLAGS[@]}" exec "$PROMPT")
+    CODEX_CMD=(codex "${CODEX_FLAGS[@]}" exec "${MODEL_FLAGS[@]}" "$PROMPT")
     run_codex "plan-$(basename "$2" | tr '/ .:' '____')" "plan review: $2"
     exit $? ;;
 
@@ -123,7 +144,7 @@ case "${1:-}" in
     # it also accepts --output-last-message so the report can be the verdict
     # instead of the whole transcript. NB: `exec review` takes custom review
     # instructions OR a scope flag, never both — scope wins here.
-    CODEX_CMD=(codex "${CODEX_FLAGS[@]}" exec review "${SCOPE_ARGS[@]}")
+    CODEX_CMD=(codex "${CODEX_FLAGS[@]}" exec review "${MODEL_FLAGS[@]}" "${SCOPE_ARGS[@]}")
     run_codex "$(printf '%s' "$BRANCH" | tr '/ :' '___')" "$SCOPE_DESC"
     exit $? ;;
 

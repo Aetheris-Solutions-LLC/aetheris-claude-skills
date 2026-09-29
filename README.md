@@ -2,7 +2,8 @@
 
 A **Claude Code marketplace** of curated skills for the Aetheris
 Solutions agency workflow. Currently ships one plugin (`aetheris`)
-with two skills (`/aetheris-review` and `/second-opinion`); grows as
+with three skills (`/aetheris-review`, `/second-opinion`, and
+`/fable-orchestrator`); grows as
 the team standardises shared workflows. The same SKILL.md sources also work on **Codex
 CLI** — see the Codex install section below.
 
@@ -10,9 +11,9 @@ CLI** — see the Codex install section below.
 
 | Plugin | Skills | What it does |
 |---|---|---|
-| `aetheris` | `/aetheris-review` | Multi-agent PR review with Aetheris admin ticket integration. Auto-detects the project, hydrates ticket acceptance criteria, fans out 5 review agents (CLAUDE.md / shallow bug / git regression / prior PR comments / in-code comment compliance), scores each finding 0–100, posts tiered PR comments (blockers ≥90, before-merge 70–89), and posts per-ticket findings back to Aetheris. Full spec: [SKILL.md](plugins/aetheris/skills/aetheris-review/SKILL.md). |
-| `aetheris` | `/second-opinion` | Independent, read-only Codex CLI review for a fresh perspective from a different model — on a code change (`--uncommitted` / `--base` / `--commit`, smart default) or a plan/spec/design doc before it's built (`--plan <file>`). Advisory only, never edits; runs Codex in a read-only sandbox with host skill-hooks disabled; report saved outside the repo (`~/.codex-reviews/`). Full spec: [SKILL.md](plugins/aetheris/skills/second-opinion/SKILL.md). |
-| `aetheris` | `/fable-orchestrator` | The agent-team playbook for expensive orchestrator models (Fable, Mythos, or Opus 5): the orchestrator plans, routes, verifies, and reports while Opus agents build, Sonnet agents implement to spec, and Codex runs the primary review on every nontrivial diff — with a reusable spawn contract, file-ownership matrices (or worktree isolation), frozen interface contracts for parallel agents, and a failure playbook. Requires the `codex` CLI. Full spec: [SKILL.md](plugins/aetheris/skills/fable-orchestrator/SKILL.md). |
+| `aetheris` | `/aetheris-review` | Multi-agent PR review with Aetheris admin ticket integration. Auto-detects the project, hydrates ticket acceptance criteria, fans out 5 review agents (CLAUDE.md / shallow bug / git regression / prior PR comments / in-code comment compliance), scores each finding 0–100, posts tiered PR comments (blockers ≥90, before-merge 70–89), and posts per-ticket findings back to Aetheris. Optional `--codex` adds a cross-vendor review lane. Full spec: [SKILL.md](plugins/aetheris/skills/aetheris-review/SKILL.md). |
+| `aetheris` | `/second-opinion` | Independent, read-only Codex CLI review for a fresh perspective from a different model — on a code change (`--uncommitted` / `--base` / `--commit`, smart default) or a plan/spec/design doc before it's built (`--plan <file>`). Advisory only, never edits; runs Codex in a read-only sandbox with host skill-hooks disabled; report saved outside the repo (`~/.codex-reviews/`). The reviewer model is pinned (override with `CODEX_REVIEW_MODEL` / `CODEX_REVIEW_EFFORT`) and recorded in each report. Full spec: [SKILL.md](plugins/aetheris/skills/second-opinion/SKILL.md). |
+| `aetheris` | `/fable-orchestrator` | The agent-team playbook for an orchestrator session (Fable or Opus): the orchestrator plans, routes, verifies, and reports while Opus agents build, Sonnet agents implement to spec, and Codex runs the primary review on every nontrivial diff — with a reusable spawn contract, file-ownership matrices (or worktree isolation), frozen interface contracts for parallel agents, and a failure playbook. Requires the `codex` CLI. Full spec: [SKILL.md](plugins/aetheris/skills/fable-orchestrator/SKILL.md). |
 
 **Using this outside Aetheris?** `/second-opinion` and
 `/fable-orchestrator` are portable — no Aetheris services required. Both
@@ -62,8 +63,9 @@ git clone https://github.com/Aetheris-Solutions-LLC/aetheris-claude-skills \
 ~/.aetheris/aetheris-claude-skills/install-codex.sh
 ```
 
-Enable multi-agent in `~/.codex/config.toml` (the five-agent fan-out
-and per-finding scoring depend on it):
+The five-agent fan-out and per-finding scoring need Codex's
+`multi_agent` feature. Current builds (0.158 checked) enable it by
+default; on an older build, add it to `~/.codex/config.toml`:
 
 ```toml
 [features]
@@ -91,11 +93,11 @@ Per skill:
 
 1. **GitHub CLI** — `gh auth status` returns clean. (All skills.)
 2. **Sub-agent dispatch capability** — Claude Code's `Agent` tool
-   (built-in) or Codex CLI's `spawn_agent` (requires
-   `multi_agent = true`). (`/aetheris-review`,
+   (built-in) or Codex CLI's `spawn_agent` (`multi_agent`, on by
+   default in current builds). (`/aetheris-review`,
    `/fable-orchestrator`.)
-3. **Codex CLI** on your PATH. (`/second-opinion`, and
-   `/fable-orchestrator`'s review lane.)
+3. **Codex CLI** on your PATH. (`/second-opinion`,
+   `/fable-orchestrator`'s review lane, and `/aetheris-review --codex`.)
 4. **Aetheris admin MCP** — Aetheris team only, `/aetheris-review`
    only. The `aetheris-admin` MCP server configured and
    authenticated in your agent's config; setup docs live in our
@@ -131,6 +133,8 @@ Once installed, the typical flow:
      `/aetheris-review 228 --blocker-threshold=85 --before-merge-threshold=65`
    - Skip ack comments on large PRs:
      `/aetheris-review 228 --no-ticket-acks`
+   - Add a Codex review lane (needs the `codex` CLI):
+     `/aetheris-review 228 --codex`
 3. Wait 2–10 minutes (PR-size dependent). The agent will hydrate
    tickets, fan out review agents with ticket context injected,
    score findings, and post comments.
@@ -151,11 +155,16 @@ aetheris-claude-skills/                 ← this repo (the marketplace)
 ├── plugins/
 │   └── aetheris/                       ← the plugin
 │       ├── .claude-plugin/plugin.json  ← plugin manifest
+│       ├── MODELS.md                   ← role → model routing, prices, release checklist
 │       └── skills/
 │           ├── aetheris-review/        ← multi-agent PR review
 │           │   ├── SKILL.md
+│           │   ├── scripts/
+│           │   │   └── pr-facts.sh     ← rule-based eligibility + CLAUDE.md paths
 │           │   └── references/
-│           │       └── codex-tools.md
+│           │       ├── codex-tools.md
+│           │       ├── comment-templates.md
+│           │       └── tuning-and-testing.md
 │           ├── second-opinion/         ← read-only Codex fresh-eyes review
 │           │   ├── SKILL.md
 │           │   └── review.sh
@@ -207,9 +216,14 @@ experience):
 ## Contributing
 
 - Open a PR against `main` with the skill change.
-- Bump `metadata.version` on any modified SKILL.md AND the
-  `version` field in `plugins/<plugin>/.claude-plugin/plugin.json`
-  for user-visible changes so `/plugin update` flags an upgrade.
+- For user-visible changes, bump `version` in
+  `plugins/<plugin>/.claude-plugin/plugin.json` and the matching
+  plugin entry in `.claude-plugin/marketplace.json` — that's the
+  version Claude Code tracks. SKILL.md files carry no version.
+- Name roles, not model versions, in skill text: use the Claude Code
+  aliases (`opus`, `sonnet`, `haiku`) and put model IDs, prices, and
+  model-specific behavior in `plugins/aetheris/MODELS.md`. Its "When a
+  model ships" checklist covers the rest.
 - The repo follows conventional commits (`feat:`, `fix:`, `docs:`,
   `chore:`).
 - Test on **both Claude Code and Codex CLI** if you touch tool-name

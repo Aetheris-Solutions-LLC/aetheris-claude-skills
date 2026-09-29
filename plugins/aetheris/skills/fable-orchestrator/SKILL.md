@@ -1,6 +1,6 @@
 ---
 name: fable-orchestrator
-description: Use when running on an expensive orchestrator model (Fable, Mythos, or Opus 5) and the task is substantive parallelizable multi-step work — building features, research sweeps, audits, incident fixes — where the user wants the agent team pattern ("spawn the team", "use opus/sonnet/codex", "orchestrate this", "keep my orchestrator context clean") or invokes /fable-orchestrator. Not for single-file changes or undiagnosed bugs.
+description: Use when the session is running as an orchestrator (a Fable- or Opus-class model) and the task is substantive parallelizable multi-step work — building features, research sweeps, audits, incident fixes — where the user wants the agent team pattern ("spawn the team", "use opus/sonnet/codex", "orchestrate this", "keep my orchestrator context clean") or invokes /fable-orchestrator. Not for single-file changes or undiagnosed bugs.
 ---
 
 # Fable Orchestrator
@@ -30,15 +30,23 @@ orchestrating is slower and more expensive than doing the work.
 (loop step 5) and the Codex worker role depend on them — without Codex you have
 same-model review only, which is the weaker half.
 
+`MODELS.md` at the plugin root (`$(realpath <this-skill-dir>/../..)/MODELS.md`)
+maps each role below to the current Claude and Codex models, with prices.
+
 ## Role routing
 
 | Who | What | Not |
 |---|---|---|
-| **You** — Fable / Mythos / Opus 5 | Decompose, spec, spawn, verify claims, route fixes, git, report | Reading big files, writing feature code, long investigations |
+| **You** — the orchestrator (Fable or Opus) | Decompose, spec, spawn, verify claims, route fixes, git, report | Reading big files, writing feature code, long investigations |
 | **Opus** (`model: "opus"`) | Complex builds, analysis, debugging, second-round same-model review | Mechanical work a spec fully determines |
-| **Sonnet** (`model: "sonnet"`) | Well-specified implementation, tests, cleanups, doc merges. Sonnet 5 lands near Opus on coding — route volume here | Open-ended design or debugging |
+| **Sonnet** (`model: "sonnet"`) | Well-specified implementation, tests, cleanups, doc merges | Open-ended design or debugging |
 | **Codex reviewer** (`aetheris:second-opinion`) | **Primary** review of every nontrivial diff, and plan/spec docs before build (`--plan <file>`) | Applying its own fixes — advisory only |
 | **Codex worker** (`codex exec`) | Tests against Claude-authored code, tie-break patches on disputed findings | Bulk implementation — separate quota, rate-limits under load |
+
+The aliases track the current generation. Routing volume to Sonnet saves money
+only when the price gap outweighs extra rounds: check the gap in `MODELS.md`,
+and when it's narrow, run one task on each and compare cost per finished task,
+not per call.
 
 ## The spawn contract
 
@@ -78,7 +86,8 @@ no git, scope discipline, and a capped FINAL REPORT shape. Copy it from
 
 ```bash
 SCRATCH=$(mktemp -d)
-codex exec --sandbox workspace-write --skip-git-repo-check -C <owned-dir> \
+codex exec -m <codex worker model from MODELS.md> --sandbox workspace-write \
+  --skip-git-repo-check -C <owned-dir> \
   -o "$SCRATCH/report.md" "<task prompt>" < /dev/null > "$SCRATCH/run.log" 2>&1
 # report.md is its final message; run.log is the event stream, for when it
 # dies and you need to see how far it got.
@@ -87,11 +96,18 @@ codex exec --sandbox workspace-write --skip-git-repo-check -C <owned-dir> \
 # runner that holds stdin open.
 ```
 
-Its sandbox writes only under `-C` — point it at the owned directory, never
-repo root. It has no mailbox, so `-o` is the mailbox: read `report.md`. Best
-yield is tests for code a Claude agent wrote, and dueling patches when reviews
-disagree — have Codex implement its finding, compare against the Claude
-version, pick on evidence.
+Its sandbox writes only under `-C` (plus temp dirs) — point it at the owned
+directory, never repo root. It has no mailbox, so `-o` is the mailbox: read
+`report.md`. Pin `-m`: left unset, Codex uses your `config.toml` model or its
+flagship, priced well above the worker tier. Effort also comes from
+`config.toml` unless you pass `-c model_reasoning_effort=<level>`; never `ultra`
+under an ownership matrix — it delegates to subagents on its own. The task
+prompt carries the spawn contract plus what "done" means — including how much
+testing — and an instruction to build rather than stop at a plan: without those,
+GPT-6 models may stop after a first pass or over-test small changes
+(`MODELS.md`). Best yield is tests for code a Claude agent wrote, and dueling
+patches when reviews disagree — have Codex implement its finding, compare
+against the Claude version, pick on evidence.
 
 ## Failure playbook
 
