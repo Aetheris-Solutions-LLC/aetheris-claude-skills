@@ -54,13 +54,13 @@ streamed run lands beside it in `<same-name>.transcript.log`. Read the report;
 open the transcript only when the report says Codex never reached a verdict.
 
 **Model and effort.** `review.sh` pins the reviewer model and runs it at
-`high` reasoning effort (the plugin's `MODELS.md` lists both), so neither a
+`xhigh` reasoning effort (the plugin's `MODELS.md` lists both), so neither a
 change to Codex's defaults nor your `config.toml` can silently swap the
 reviewer or lower its effort. Override per run with environment variables —
-`xhigh` for a risky merge, for example:
+`high` for a quicker pass on a small diff, for example:
 
 ```bash
-CODEX_REVIEW_EFFORT=xhigh bash <this-skill-dir>/review.sh --base main
+CODEX_REVIEW_EFFORT=high bash <this-skill-dir>/review.sh --base main
 ```
 
 `CODEX_REVIEW_MODEL` swaps the model the same way. Each report's header

@@ -28,7 +28,7 @@ set -uo pipefail
 # swap the reviewer or drop its effort (Astra's Codex default is `low`). The
 # plugin's MODELS.md lists the current values; update both together.
 REVIEW_MODEL="${CODEX_REVIEW_MODEL:-gpt-6-astra}"
-REVIEW_EFFORT="${CODEX_REVIEW_EFFORT:-high}"
+REVIEW_EFFORT="${CODEX_REVIEW_EFFORT:-xhigh}"
 
 # --- preflight (codex always required) -------------------------------------
 command -v codex >/dev/null 2>&1 || {

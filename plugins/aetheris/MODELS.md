@@ -18,7 +18,7 @@ Checked 2026-09-29 against Claude Code 2.1.284 and Codex CLI 0.158.0.
 | Review lane | `sonnet` → Sonnet 5.5 | `gpt-6-sol` | `/aetheris-review` step 3 |
 | Scorer | `sonnet` → Sonnet 5.5 | `gpt-6-sol` | `/aetheris-review` step 4 |
 | Triage | `haiku` → Haiku 4.5 | `gpt-6-luna` | `/aetheris-review` step 6 ticket mapping |
-| Cross-vendor reviewer | — | `gpt-6-astra` at `high` effort (pinned in `review.sh`; override with `CODEX_REVIEW_MODEL` / `CODEX_REVIEW_EFFORT`) | `/second-opinion`, `/aetheris-review --codex`, `/fable-orchestrator` review round |
+| Cross-vendor reviewer | — | `gpt-6-astra` at `xhigh` effort (pinned in `review.sh`; override with `CODEX_REVIEW_MODEL` / `CODEX_REVIEW_EFFORT`) | `/second-opinion`, `/aetheris-review --codex`, `/fable-orchestrator` review round |
 | Codex worker | — | `gpt-6-sol` | `/fable-orchestrator` (`codex exec -m`) |
 
 The Codex column is the price-tier analog of the Claude column: Sol sits at
@@ -67,8 +67,8 @@ call.
   Codex's catalog defaults Astra to `low` and Sol to `medium`. `ultra` turns
   on proactive subagent delegation — don't use it for `review.sh` or for
   workers bound by a file-ownership matrix.
-  `review.sh` pins `high` (override with `CODEX_REVIEW_EFFORT`, e.g. `xhigh`
-  for a risky merge) and records what ran in each report. The worker command
+  `review.sh` pins `xhigh` (override with `CODEX_REVIEW_EFFORT`, e.g. `high`
+  for a quicker pass on a small diff) and records what ran in each report. The worker command
   leaves effort to `config.toml` (or the model's default) unless it's passed.
 
 ## When a model ships
