@@ -21,14 +21,14 @@
 #
 # Environment:
 #   CODEX_REVIEW_MODEL   reviewer model (default below; see ../../MODELS.md)
-#   CODEX_REVIEW_EFFORT  reasoning effort (default: unset, so config.toml's
-#                        model_reasoning_effort or the model's default applies)
+#   CODEX_REVIEW_EFFORT  reasoning effort (default below: low|medium|high|xhigh|max)
 set -uo pipefail
 
-# Pinned so a change to Codex's own default can't silently swap the reviewer.
-# The plugin's MODELS.md lists the current value; update both together.
+# Pinned so a change to Codex's defaults or a user's config.toml can't silently
+# swap the reviewer or drop its effort (Astra's Codex default is `low`). The
+# plugin's MODELS.md lists the current values; update both together.
 REVIEW_MODEL="${CODEX_REVIEW_MODEL:-gpt-6-astra}"
-REVIEW_EFFORT="${CODEX_REVIEW_EFFORT:-}"
+REVIEW_EFFORT="${CODEX_REVIEW_EFFORT:-high}"
 
 # --- preflight (codex always required) -------------------------------------
 command -v codex >/dev/null 2>&1 || {
@@ -51,8 +51,8 @@ fi
 CODEX_FLAGS=(-s read-only -a never --disable hooks)
 # Model flags go after the subcommand. `review_model` is set too because a
 # user's config.toml can name a separate model for reviews.
-MODEL_FLAGS=(-m "$REVIEW_MODEL" -c "review_model=\"$REVIEW_MODEL\"")
-[ -n "$REVIEW_EFFORT" ] && MODEL_FLAGS+=(-c "model_reasoning_effort=\"$REVIEW_EFFORT\"")
+MODEL_FLAGS=(-m "$REVIEW_MODEL" -c "review_model=\"$REVIEW_MODEL\""
+  -c "model_reasoning_effort=\"$REVIEW_EFFORT\"")
 OUT_DIR="$HOME/.codex-reviews/$REPO_NAME"
 mkdir -p "$OUT_DIR"
 STAMP="$(date +%Y-%m-%d-%H%M%S)"
@@ -83,7 +83,7 @@ run_codex() {
     echo "- branch: $BRANCH"
     echo "- scope: $desc"
     echo "- model: ${ran_model:-unknown} (requested: $REVIEW_MODEL)"
-    echo "- reasoning effort: ${ran_effort:-unknown} (requested: ${REVIEW_EFFORT:-not set, config.toml or model default})"
+    echo "- reasoning effort: ${ran_effort:-unknown} (requested: $REVIEW_EFFORT)"
     echo "- mode: read-only (Codex made no changes)"
     echo
     echo "---"

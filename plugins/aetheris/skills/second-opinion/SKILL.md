@@ -53,20 +53,19 @@ final message via `--output-last-message` and write it to the report; the
 streamed run lands beside it in `<same-name>.transcript.log`. Read the report;
 open the transcript only when the report says Codex never reached a verdict.
 
-**Model.** The reviewer model is pinned in `review.sh` (the plugin's
-`MODELS.md` lists it) so a change to Codex's own default can't silently swap
-the reviewer. Override per run with environment variables:
+**Model and effort.** `review.sh` pins the reviewer model and runs it at
+`high` reasoning effort (the plugin's `MODELS.md` lists both), so neither a
+change to Codex's defaults nor your `config.toml` can silently swap the
+reviewer or lower its effort. Override per run with environment variables —
+`xhigh` for a risky merge, for example:
 
 ```bash
-CODEX_REVIEW_MODEL=gpt-6-sol CODEX_REVIEW_EFFORT=high bash <this-skill-dir>/review.sh --base main
+CODEX_REVIEW_EFFORT=xhigh bash <this-skill-dir>/review.sh --base main
 ```
 
-`CODEX_REVIEW_EFFORT` is unset by default, so your `config.toml`'s
-`model_reasoning_effort` (or the model's default) applies. If that is `ultra`
-— which delegates to subagents on its own — set `CODEX_REVIEW_EFFORT` for
-reviews. Each report's header records the model and effort Codex reported
-running, next to what was requested, so reviews stay comparable across model
-changes.
+`CODEX_REVIEW_MODEL` swaps the model the same way. Each report's header
+records the model and effort Codex reported running, next to what was
+requested, so reviews stay comparable across model changes.
 
 `codex exec review` does accept custom review instructions, but **not alongside
 a scope flag** — `--uncommitted` / `--base` / `--commit` and a custom prompt are
