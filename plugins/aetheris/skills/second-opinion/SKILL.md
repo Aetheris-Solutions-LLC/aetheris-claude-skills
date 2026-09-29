@@ -2,8 +2,6 @@
 name: second-opinion
 description: Use when you want an independent, fresh-perspective review from a different model (OpenAI Codex) — either on a code change (diff/branch/commit) or on a plan/spec/design doc before it's built. A read-only advisory second opinion that never edits. Triggered by /second-opinion, or when the user asks for "a second opinion", "fresh eyes", "a Codex review", or "review this plan".
 argument-hint: "[--uncommitted | --base <branch> | --commit <sha> | --plan <file>]"
-metadata:
-  version: 1.0.0
 ---
 
 # Second Opinion
@@ -54,6 +52,20 @@ plan-critique prompt. Both run from the repo so Codex can cross-reference code.
 final message via `--output-last-message` and write it to the report; the
 streamed run lands beside it in `<same-name>.transcript.log`. Read the report;
 open the transcript only when the report says Codex never reached a verdict.
+
+**Model and effort.** `review.sh` pins the reviewer model and runs it at
+`xhigh` reasoning effort (the plugin's `MODELS.md` lists both), so neither a
+change to Codex's defaults nor your `config.toml` can silently swap the
+reviewer or lower its effort. Override per run with environment variables —
+`high` for a quicker pass on a small diff, for example:
+
+```bash
+CODEX_REVIEW_EFFORT=high bash <this-skill-dir>/review.sh --base main
+```
+
+`CODEX_REVIEW_MODEL` swaps the model the same way. Each report's header
+records the model and effort Codex reported running, next to what was
+requested, so reviews stay comparable across model changes.
 
 `codex exec review` does accept custom review instructions, but **not alongside
 a scope flag** — `--uncommitted` / `--base` / `--commit` and a custom prompt are

@@ -1,9 +1,7 @@
 ---
 name: aetheris-review
 description: Multi-agent PR review with Aetheris ticket integration. Use when reviewing a PR in any Aetheris client project — auto-detects the project from the repo URL, pulls associated tickets and acceptance criteria into the review, posts a tiered PR comment (blockers + before-merge) and per-ticket findings to Aetheris. Triggered by /aetheris-review or /aetheris-review <PR#>.
-argument-hint: "[pr-number] [--blocker-threshold=N] [--before-merge-threshold=N] [--no-ticket-acks]"
-metadata:
-  version: 1.1.1
+argument-hint: "[pr-number] [--blocker-threshold=N] [--before-merge-threshold=N] [--no-ticket-acks] [--codex] [--dry-run]"
 ---
 
 # Aetheris Review
@@ -33,7 +31,7 @@ When **not** to use:
 ## Prerequisites
 
 - **GitHub CLI**: `gh auth status` must succeed. Used for everything
-  PR-side (view, diff, comment).
+  PR-side (view, diff, comment), including `scripts/pr-facts.sh`.
 - **Aetheris admin MCP authenticated**. The skill calls the
   `admin_*` tool family. Aetheris team: see the internal (private)
   `AetherisSite` repo, `docs/admin/claude-code-setup.md`,
@@ -47,12 +45,17 @@ When **not** to use:
     `admin_ticket_get`, `admin_ticket_list_comments`,
     `admin_ticket_list_dependencies`, `admin_epic_get`
   - Write: `admin_ticket_post_comment`
-- **Sub-agent dispatch**. The skill assumes the runner can dispatch
-  parallel sub-agents with model selection (a stronger model for
-  review, a faster model for scoring). On Claude Code that's the
-  `Agent` tool with `model: sonnet` / `model: haiku`. On Codex CLI
-  it's `spawn_agent` with the multi-agent feature enabled — see
-  [`references/codex-tools.md`](references/codex-tools.md).
+- **Sub-agent dispatch** with model selection. On Claude Code that's
+  the `Agent` tool with the aliases named in each step (`sonnet` for
+  review lanes and scoring, `haiku` for ticket mapping). On Codex CLI
+  it's `spawn_agent` — see
+  [`references/codex-tools.md`](references/codex-tools.md). The
+  plugin's `MODELS.md` maps these roles to current models.
+- **Codex CLI** — only for `--codex`. The lane runs the sibling
+  `second-opinion` skill's `review.sh`.
+
+Installation: see the marketplace
+[README](../../../../README.md#install).
 
 ## Arguments
 
@@ -67,6 +70,13 @@ When **not** to use:
 - `--no-ticket-acks` (optional) — skip the "Reviewed in PR #N, no
   issues attributable" acknowledgement comments on no-finding tickets.
   Cuts ticket-comment noise when reviewing very large PRs.
+- `--codex` (optional) — add a cross-vendor review lane (step 3b)
+  whose findings go through the same scoring as the five agents.
+- `--dry-run` (optional) — run the whole review but post nothing:
+  report eligibility without stopping on it, and print the PR comment
+  bodies and per-ticket mapping instead of posting them. Use it to
+  re-check the reference PRs in
+  [`references/tuning-and-testing.md`](references/tuning-and-testing.md).
 
 Parse these from the slash-command arg string. Anything else after
 the PR number that doesn't match a known flag → warn and ignore.
@@ -76,15 +86,27 @@ the PR number that doesn't match a known flag → warn and ignore.
 Make a todo list before starting. The flow has 8 steps; each is its
 own todo so progress is visible.
 
-### Step 0 — Eligibility check (Haiku)
+### Step 0 — Eligibility check
 
-Mirrors the reference skill exactly. Dispatch one Haiku agent to ask
-whether the PR is (a) closed, (b) a draft, (c) trivial/automated, or
-(d) already reviewed by this skill in a prior comment. The
-already-reviewed check should look for the marker string
-`<!-- aetheris-review:v1 -->` in existing PR comment bodies (we will
-embed this marker in our own comments — see Comment templates
-below). If any condition is true, stop and report why.
+Same conditions as the reference skill: stop if the PR is (a) closed,
+(b) a draft, (c) trivial or automated, or (d) already reviewed by this
+skill. Run the bundled script with the PR's repository as the working
+directory (the script path points into this skill's directory):
+
+```bash
+bash <this-skill-dir>/scripts/pr-facts.sh <pr-number>
+```
+
+It settles (a), (b), and (d) — (d) by finding the
+`<!-- aetheris-review:v1 -->` marker in PR comment bodies — and prints
+`eligible: no — <reasons>` or `eligible: yes`. It also prints the
+title, author, size, head/base SHAs, base branch, changed files, and
+the CLAUDE.md files that govern them; keep that output for the rest of
+the flow. Its `head:` SHA is the one commit this review covers — use
+it everywhere a SHA is needed (the Codex lane, code links). Decide (c)
+yourself from it: a bot author, a lockfile- or version-only diff, and
+similar. If any condition holds, stop and report why — or, with
+`--dry-run`, note it and continue.
 
 ### Step 1 — Project auto-detection
 
@@ -117,8 +139,8 @@ rest of the flow.
 Pull the PR body and every commit message on the branch:
 
 ```bash
-gh pr view <pr> --json body,commits,headRefOid,baseRefOid \
-  --jq '{body, head: .headRefOid, base: .baseRefOid, commits: [.commits[].messageHeadline + "\n" + .commits[].messageBody]}'
+gh pr view <pr> --json body,commits \
+  --jq '{body, commits: [.commits[].messageHeadline + "\n" + .commits[].messageBody]}'
 ```
 
 (Two passes through `.commits[]` is intentional — headline and body
@@ -185,16 +207,15 @@ review comment header noting "No Aetheris tickets referenced in PR
 body or commits." so the user can fix the PR description if that
 was unintentional.
 
-### Step 3 — Five-agent fan-out (parallel Sonnet)
+### Step 3 — Five-agent fan-out (parallel, `model: sonnet`)
 
 Same five agents as the reference skill, dispatched in one message.
 Each agent must receive **all four blocks** in its prompt:
 
-1. The PR summary (one-line "what this PR does" generated by a
-   Haiku pre-step, same as reference step 3).
-2. The list of relevant `CLAUDE.md` paths (also from a Haiku
-   pre-step; supply file paths only, not contents — the agent reads
-   them as needed).
+1. The PR summary — one line on what this PR does. Write it yourself
+   from the title, body, and file list you already have.
+2. The `claude_md:` paths from step 0's `pr-facts.sh` output (paths
+   only, not contents — the agent reads them as needed).
 3. The **ticket context block** from step 2.
 4. The project name + repo URL for grounding.
 
@@ -260,10 +281,37 @@ the comment to match the new behaviour — that's intentional.
 can merge them without type juggling. After fan-out, concatenate the
 five JSON arrays into a single `findings[]` list.
 
-### Step 4 — Confidence scoring (one Haiku per finding)
+### Step 3b — Codex lane (`--codex` only)
 
-For each finding, dispatch a Haiku agent in parallel. Give the
-scoring agent:
+A different vendor's model, so different blind spots. Start it before
+the fan-out, in the background, and collect it before step 4. It
+reviews a detached worktree at the PR head, so your checkout is
+untouched:
+
+```bash
+TMP="$(mktemp -d)"; WT="$TMP/$(basename "$(git rev-parse --show-toplevel)")"
+git worktree add -q --detach "$WT" <head sha>
+(cd "$WT" && bash <this-skill-dir>/../second-opinion/review.sh --base <base sha> > /dev/null)
+git worktree remove --force "$WT"; rm -rf "$TMP"
+```
+
+Both SHAs come from step 0's output, which fetched them; skip the
+lane if it printed `commits_local: no`. Stdout goes to `/dev/null`
+because it carries Codex's full transcript; the `REPORT_PATH:` line
+arrives on stderr. If the run is interrupted, remove the worktree
+the same way before retrying. Read the report and convert each Codex
+finding into the shared schema with `why_flagged: "Codex second
+opinion"`, then append them to `findings[]`. They are scored like
+every other finding — don't promote them. If the lane fails (Codex
+missing or not logged in), say so in the wrap-up and continue without
+it. When this skill itself runs on Codex CLI, the lane is the same
+vendor as the fan-out and adds little.
+
+### Step 4 — Confidence scoring (one `model: sonnet` agent per finding)
+
+For each finding, dispatch a scoring agent in parallel. Scoring
+decides what gets posted, so it runs on the same tier as the review
+lanes. Give the scoring agent:
 
 - The PR summary
 - The CLAUDE.md file paths
@@ -301,7 +349,12 @@ For findings flagged due to CLAUDE.md, the scoring agent must verify
 the cited CLAUDE.md actually says what the review agent claimed
 (same as the reference skill).
 
-The scoring agent returns `{score: 0|25|50|75|100, justification: <one sentence>}`.
+The scoring agent returns `{score: <integer 0–100>, justification: <one sentence>}`.
+The five descriptions are calibration anchors, not the only allowed
+values: the tier cutoffs in step 5 (90 and 70 by default) sit between
+anchors, so a score has to be able to land between them. Score
+between two anchors when the evidence sits between their
+descriptions.
 
 False-positive examples the agent should treat as score 0 (same as
 reference skill plus two additions):
@@ -330,9 +383,12 @@ Sort by score, then assign tiers using the configured thresholds:
   (default 70–89) → **Before merge**
 - `score < before_merge_threshold` → **Discarded**
 
-Re-run the eligibility check from step 0 once before posting (to
-catch the case where the PR was closed or already reviewed during
-the long fan-out).
+Re-run the step 0 command (same script path, same PR number) once
+before posting, to catch a PR that was closed or already reviewed
+during the long fan-out. If its `head:` differs from step 0's, the
+author pushed mid-review: say so and stop rather than posting findings
+against lines that moved. With `--dry-run`, print the tiers and the
+comment bodies below instead of posting, and skip step 6's posts.
 
 Then post comments per this matrix:
 
@@ -343,10 +399,13 @@ Then post comments per this matrix:
 | ≥1 | ≥1 | Headline comment, then follow-up comment |
 | 0 | ≥1 | Single combined comment (see template) |
 
-Use `gh pr comment <pr> --body-file <tmp>` for each comment. Each
-comment body **must** include the `<!-- aetheris-review:v1 -->`
-marker on the first line (so step 0's "already reviewed" check fires
-on re-runs). The marker is HTML so it renders invisibly on GitHub.
+Use `gh pr comment <pr> --body-file <tmp>` for each comment, with
+bodies from
+[`references/comment-templates.md`](references/comment-templates.md)
+(read it now). Each comment body **must** include the
+`<!-- aetheris-review:v1 -->` marker on the first line (so step 0's
+"already reviewed" check fires on re-runs). The marker is HTML so it
+renders invisibly on GitHub.
 
 ### Step 6 — Per-ticket comments
 
@@ -358,8 +417,8 @@ For every ticket in the cache from step 2:
      look for paths matching `frontend/...`, `src/...`,
      `supabase/...`, etc.), OR
    - Acceptance-criteria match: semantically map the finding text to
-     the acceptance-criteria bullets. Use a single Haiku agent per
-     ticket to do this mapping — give it the finding texts and the
+     the acceptance-criteria bullets. Use a single `model: haiku`
+     agent per ticket to do this mapping — give it the finding texts and the
      ticket body, ask for the subset of findings that "directly
      affect whether this ticket's acceptance criteria are met."
 2. If the ticket has no attributable findings:
@@ -392,247 +451,20 @@ Print a tight summary to stdout:
 Reviewed PR #<N> against project <slug>.
   Tickets: <K> matched
   Findings: <X> blocker / <Y> before-merge / <Z> discarded
+  Codex lane: <ran / skipped: reason / not requested>
   PR comments posted: <count>
   Ticket comments posted: <count>
 ```
 
+With `--dry-run`, the last two lines read `0 (dry run)`.
+
 Done.
 
-## Comment templates
-
-Templates are intentionally minimal — narrative tone, not bullet
-salad. Keep the templates in sync with the reference skill where the
-overlap is direct (link format, sub footer).
-
-### Template — "no issues found"
-
-```markdown
-<!-- aetheris-review:v1 -->
-### Code review
-
-No issues found. Checked for bugs, CLAUDE.md compliance, regressions
-against recent history, prior-PR review comments, and in-code
-comment compliance. Grounded against <K> Aetheris ticket(s):
-<TICKET-X, TICKET-Y, …>.
-
-🤖 Generated with [Claude Code](https://claude.ai/code)
-```
-
-### Template — headline blocker comment
-
-```markdown
-<!-- aetheris-review:v1 -->
-### Code review
-
-Found <N> issue(s):
-
-1. <brief description> (<why flagged — e.g. "regression from #228",
-   "CLAUDE.md says …", "violates acceptance criterion X of
-   TICKET-PCI-ARC-T03">)
-
-<full-SHA permalink at PR head, with at least one line of context
-above and below, e.g.
-https://github.com/<owner>/<repo>/blob/<full-sha>/path/file.ts#L42-L47>
-
-2. <brief description> (<why flagged>)
-
-<full-SHA permalink>
-
-🤖 Generated with [Claude Code](https://claude.ai/code)
-
-<sub>If this code review was useful, please react with 👍. Otherwise, 👎.</sub>
-```
-
-### Template — follow-up "before merge" comment
-
-Used when there is at least one blocker AND at least one before-merge
-finding. The comment above (the headline) carries the blockers; this
-comment carries the rest.
-
-```markdown
-<!-- aetheris-review:v1 -->
-### Code review — the rest of the story
-
-The comment above flagged the <N> confidence-≥<blocker_threshold>
-items. This PR is large and the review surfaced <M> more findings
-that landed in the <before_merge_threshold>–<blocker_threshold - 1>
-range — not nitpicks, each rated "highly likely to be hit in
-practice." Posting them here so the PR reflects the real state of
-the change.
-
-**1. <one-line headline> (<TICKET-…>)**
-
-<narrative paragraph: what breaks for the user, the root cause with
-a markdown-rendered full-SHA code link, and the fix direction>
-
-**2. <one-line headline> (<TICKET-…>)**
-
-<narrative paragraph>
-
----
-
-Net: <N> hard blockers + <M> worth fixing before merge. <One closing
-sentence on the overall shape — e.g. "Nothing here is structural —
-the arc architecture is sound — these are seams where the rewrite
-dropped a guarantee the old flow held.">
-
-🤖 Generated with [Claude Code](https://claude.ai/code)
-```
-
-### Template — combined "no blockers but worth fixing" comment
-
-Used when there are zero blockers but at least one before-merge
-finding.
-
-```markdown
-<!-- aetheris-review:v1 -->
-### Code review
-
-No hard blockers, but <M> item(s) worth addressing before merge.
-
-**1. <one-line headline> (<TICKET-…>)**
-
-<narrative paragraph with code link>
-
-**2. <one-line headline> (<TICKET-…>)**
-
-<narrative paragraph with code link>
-
-🤖 Generated with [Claude Code](https://claude.ai/code)
-```
-
-### Template — per-ticket comment (findings present)
-
-```markdown
-Reviewed in PR #<N> ([link to PR comment](<PR comment permalink>)).
-
-Findings attributable to this ticket:
-
-- **Blocker** — <one-liner>. See PR comment for narrative + code link.
-- **Before merge** — <one-liner>. See PR comment for narrative + code link.
-
-<!-- aetheris-review:v1 -->
-```
-
-### Template — per-ticket comment (no findings)
-
-```markdown
-Reviewed in PR #<N> ([link](<PR url>)) — no issues attributable to this ticket.
-
-<!-- aetheris-review:v1 -->
-```
-
-### Code-link format (verbatim from reference skill)
-
-GitHub renders markdown link previews only for the canonical
-permalink shape. **You must use the full SHA**, not the short SHA,
-and not a `$(git rev-parse HEAD)` substitution (the comment renders
-as markdown — the substitution never executes):
-
-```
-https://github.com/<owner>/<repo>/blob/<full-sha>/<path>#L<start>-L<end>
-```
-
-- Get the SHA via `gh pr view <pr> --json headRefOid --jq '.headRefOid'` once,
-  cache it for the whole flow.
-- Always include at least one line of context before and after the
-  flagged line range.
-
-## Tuning notes
-
-The cutoffs (90 / 70) were tuned on two reference PRs (see Testing
-below). Re-tune if:
-
-- 70 keeps letting in noise → push to 75 (`--before-merge-threshold=75`)
-- The follow-up comment is missing real things → drop to 65
-- Blocker tier is over-firing → push to 95
-- Blocker tier is under-firing → drop to 85
-
-If you tune persistently, edit the defaults in this file rather than
-passing flags every invocation.
-
-## Testing
-
-The skill must produce sensible output on these two reference PRs:
-
-1. **mikerob2/WSV PR #229** (small semantic fix, one ticket UUID in
-   the body) — expected: zero items at any tier, single
-   "no issues found" comment.
-2. **mikerob2/WSV PR #228** (93 files, full epic with
-   TICKET-PCI-ARC-T01 through T10) — expected: 2 blockers + 6
-   before-merge findings, plus 10 per-ticket comments (one per
-   ticket touched).
-
-If a run on either PR produces materially different output than the
-hand-run that motivated the skill, something regressed. Investigate
-before iterating further.
-
-If `--no-ticket-acks` was passed on the second PR, expect ~3 ticket
-comments (only the ones with attributable findings) instead of 10.
-
-## Installation
-
-This skill ships inside the `aetheris` plugin in the
-[`aetheris-claude-skills`](https://github.com/Aetheris-Solutions-LLC/aetheris-claude-skills)
-**marketplace** repo (one marketplace, one plugin, many skills as
-the team grows). Works on both Claude Code and Codex CLI.
-
-### Claude Code (two-command flow)
-
-Register the marketplace once, then install the plugin from it:
-
-```text
-/plugin marketplace add Aetheris-Solutions-LLC/aetheris-claude-skills
-/plugin install aetheris@aetheris-claude-skills
-```
-
-Restart Claude Code. Verify by typing `/aetheris-review` and
-checking that the slash completion fires. Update later with
-`/plugin update aetheris@aetheris-claude-skills` — any future skills
-added to the `aetheris` plugin get picked up automatically.
-
-### Codex CLI
-
-Codex doesn't have a marketplace concept yet — clone the repo and
-run the included symlink script:
-
-```bash
-git clone https://github.com/Aetheris-Solutions-LLC/aetheris-claude-skills \
-  ~/.aetheris/aetheris-claude-skills
-~/.aetheris/aetheris-claude-skills/install-codex.sh
-```
-
-The script symlinks every `plugins/*/skills/*/` directory into
-`~/.agents/skills/`, so it picks up future skills automatically.
-It's idempotent (re-run safely) and supports `--dry-run` and
-`--uninstall`.
-
-Enable multi-agent in `~/.codex/config.toml` (the five-agent fan-out
-+ scoring step depend on it):
-
-```toml
-[features]
-multi_agent = true
-```
-
-Restart Codex CLI. Update later:
-
-```bash
-cd ~/.aetheris/aetheris-claude-skills && git pull && ./install-codex.sh
-```
-
-See [`references/codex-tools.md`](references/codex-tools.md) for the
-full Claude Code → Codex tool mapping (Agent → `spawn_agent`,
-TodoWrite → `update_plan`, MCP namespace differences, etc.) and the
-Codex `~/.codex/config.toml` MCP setup for `aetheris-admin`.
-
-### Development
-
-Clone the marketplace repo, then either symlink the skill straight
-into your platform's skills dir or install from a local path
-(Claude Code: `/plugin marketplace add /absolute/path/...`). The
-[marketplace README](../../../../README.md#development) has the
-full dev workflow.
+## Tuning and testing
+
+The 90 / 70 cutoffs, when to move them, and the two reference PRs
+every change is checked against:
+[`references/tuning-and-testing.md`](references/tuning-and-testing.md).
 
 ## Out of scope (v1)
 
@@ -644,10 +476,8 @@ full dev workflow.
   no `repo_url` match and the user can't pick an active project,
   the skill fails loudly rather than silently degrading to plain
   code review.
-- No cross-PR memory (yet). v2 idea: if a finding shows up across
-  multiple PRs (e.g. the email-verify-server-side gap shipped in
-  #228 keeps reappearing), surface "this was flagged on PR #N and
-  not addressed" by reading recent PR comments on the same file.
+- No cross-PR memory: a finding flagged on an earlier PR and left
+  unaddressed isn't linked back to it.
 
 ## Common mistakes
 
@@ -656,7 +486,7 @@ full dev workflow.
 | Skipping the eligibility check and posting a duplicate review | Step 0 + the `<!-- aetheris-review:v1 -->` marker exist for this reason. Re-check after the long fan-out (step 5) too. |
 | Hardcoding the active project list | Always read it from `admin_project_list` at runtime; the active set changes weekly. |
 | Posting per-ticket comments on cross-org matches | Filter by `project_id` after `admin_ticket_get`; a regex match that hits another org's UUID is a security signal, not a match. |
-| Code links with the short SHA | They render as plain text on GitHub. Use the full SHA from `headRefOid`. |
+| Code links with the short SHA | They render as plain text on GitHub. Use the full `head:` SHA from step 0. |
 | Treating discarded findings (<70) as ignored forever | They're logged in stdout for inspection — useful for tuning thresholds. Don't post them, but don't drop them silently either. |
 | Calling `admin_ticket_post_comment` for the PR comment | The PR comment goes through `gh pr comment`, not the Aetheris MCP. The MCP call is for **ticket** comments only. |
 

@@ -9,8 +9,8 @@ the tool names change. Use this table when reading the skill.
 
 | SKILL.md says | Codex equivalent |
 |---|---|
-| Dispatch an Agent (Sonnet) | `spawn_agent` with your stronger model (e.g. `gpt-5`) |
-| Dispatch an Agent (Haiku) | `spawn_agent` with your faster model (e.g. `gpt-5-mini`) |
+| Dispatch an Agent (`model: sonnet`) | `spawn_agent` with the Codex model `MODELS.md` lists for that role |
+| Dispatch an Agent (`model: haiku`) | `spawn_agent` with the Codex model `MODELS.md` lists for the triage role |
 | Multiple parallel Agent calls | Multiple `spawn_agent` calls in one batch |
 | Wait for Agent to return findings | `wait_agent` |
 | Free a finished Agent | `close_agent` |
@@ -19,37 +19,31 @@ the tool names change. Use this table when reading the skill.
 | `Read` / `Write` / `Edit` files | Your native file tools |
 | `mcp__aetheris-admin__admin_project_list` | The same MCP tool — Codex namespaces MCP tools differently per platform version; check the tool inventory at session start and adjust the prefix if needed. The underlying `admin_*` names are stable. |
 
-## Prerequisite — enable multi-agent
+## Multi-agent
 
-The five-agent fan-out + one-Haiku-per-finding step require Codex's
-multi-agent feature flag. Add to `~/.codex/config.toml`:
+The five-agent fan-out and per-finding scoring use `spawn_agent`.
+Current Codex CLI builds (0.158 checked) ship the `multi_agent`
+feature enabled by default. On an older build where `spawn_agent` is
+missing, add to `~/.codex/config.toml`:
 
 ```toml
 [features]
 multi_agent = true
 ```
 
-Without this, `spawn_agent` is unavailable and the skill cannot
-parallelise — you can still run it serially (one review pass at a
-time), but expect 4–6× slower wall time on a large PR.
+Without it the skill cannot parallelise — you can still run it
+serially (one review pass at a time), but expect 4–6× slower wall
+time on a large PR.
 
 ## Model selection
 
-The SKILL.md says "5 parallel Sonnet agents" for review and
-"1 Haiku per finding" for scoring. Translate to your Codex model
-tiers:
-
-- **Review agents** (the 5 fan-out): use Codex's strongest model
-  you have budget for. The Sonnet analog is roughly GPT-5 in 2026
-  pricing. Higher reasoning depth = better catches in step 4
-  (regressions) and step 5 (in-code comment compliance).
-- **Scoring agents** (one per finding): use a faster, cheaper
-  model. The Haiku analog is GPT-5-mini or equivalent. The scoring
-  rubric is structured enough that smaller models do fine.
-
-You can override these on a per-`spawn_agent` call. The skill body
-doesn't lock you into any model — "Sonnet" and "Haiku" are
-mnemonic, not normative.
+The SKILL.md names Claude Code aliases per role: `sonnet` for the
+five review lanes and for scoring, `haiku` for ticket mapping. The
+plugin's `MODELS.md` (two directories above this skill) lists the
+Codex model for each role, matched by price tier. Pass it on each
+`spawn_agent` call. Subagents otherwise inherit the parent's model
+and reasoning effort, unless `agents.default_subagent_model` in
+`config.toml` sets one.
 
 ## MCP server setup on Codex
 
